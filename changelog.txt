@@ -1,0 +1,4 @@
+*** Mobio for WooCommerce Changelog ***
+
+2022-05-21 - version 1.0.0
+* Initial release
