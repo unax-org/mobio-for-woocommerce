@@ -93,6 +93,9 @@ function wc_gateway_mobio_init() {
 	add_action( 'wp_enqueue_scripts', 'mobio_enqueue_scripts' );
 
 	// Hook filters and actions.
+	add_filter( 'woocommerce_gateway_description', array( 'Mobio_WooCommerce', 'checkout_form_field' ), 20, 2 );
+	add_action( 'woocommerce_product_options_general_product_data', array( '\Unax\Mobio\Includes\Settings', 'product_options_general_product_data' ) );
+	add_action( 'woocommerce_process_product_meta', array( '\Unax\Mobio\Includes\Settings', 'process_product_meta' ) );
 
 	// Initialize.
 	require_once MOBIO_WC_PATH . '/includes/class-mobio-woocommerce.php';
@@ -101,12 +104,12 @@ function wc_gateway_mobio_init() {
 	add_filter(
 		'woocommerce_payment_gateways',
 		function ( $gateways ) {
-			$gateways[] = new Mobio_WooCommerce( $payment_method );
+			$gateways[] = new Mobio_WooCommerce();
 			return $gateways;
 		}
 	);
 
-	add_filter( 'woocommerce_gateway_description', array(  ), 20, 2 );
+	// add_filter( 'woocommerce_gateway_description', array(  ), 20, 2 );
 }
 
 
@@ -124,7 +127,7 @@ function mobio_admin_enqueue_scripts( $hook ) {
 	wp_enqueue_style( 'mobio-woocommerce-admin', MOBIO_WC_URL . 'dist/css/admin.css', array(), MOBIO_WC_VERSION );
 
 	wp_enqueue_script( 'mobio-polyfill', MOBIO_WC_URL . 'dist/js/polyfill.js', array(), MOBIO_WC_VERSION, true );
-	wp_enqueue_script( 'mobio-woocommerce', MOBIO_WC_URL . 'dist/js/admin.js', array( 'wp-i18n', 'jquery', 'selectWoo', 'mobio-polyfill' ), MOBIO_WC_VERSION, true );
+	wp_enqueue_script( 'mobio-woocommerce', MOBIO_WC_URL . 'dist/js/admin.js', array( 'wp-i18n', 'jquery', 'mobio-polyfill' ), MOBIO_WC_VERSION, true );
 }
 
 
