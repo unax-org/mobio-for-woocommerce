@@ -34,6 +34,9 @@ define( 'MOBIO_WC_MIN_WC_VER', '3.0' );
 define( 'MOBIO_WC_PATH', plugin_dir_path( __FILE__ ) );
 define( 'MOBIO_WC_URL', plugin_dir_url( __FILE__ ) );
 
+// Load the textdomain.
+load_plugin_textdomain( 'mobio-woocommerce', false, sprintf( '%s/languages', dirname( plugin_basename( __FILE__ ) ) ) );
+
 // Includes.
 require_once MOBIO_WC_PATH . 'functions.php';
 require_once MOBIO_WC_PATH . 'includes/class-settings.php';
