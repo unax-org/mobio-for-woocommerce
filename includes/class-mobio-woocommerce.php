@@ -151,52 +151,31 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
 	/**
 	 * Validate code by Mobio.
 	 *
-	 * @param string $fields Checkout fields.
-	 * @param string $errors Checkout errors.
-	 *
-	 * @return bool
-	 */
-	public static function after_checkout_code_validation( $fields, $errors ) {
-		$code 		   = isset( $_POST['mobio_code'] ) ? sanitize_text_field( $_POST['mobio_code'] ) : null;
-		$validate_code = self::validate_code( $code );
-
-		if ( 'error' === $validate_code['result'] ) {
-			$errors->add( 'validation', esc_html( $validate_code['message'] ) );
-
-			return false;
-		}
-
-		return true;
-	}
-
-
-	/**
-	 * Validate code by Mobio.
-	 *
-	 * @param string $code Code.
+	 * @param string $mobio_code Code.
 	 *
 	 * @return array
 	 */
-	public static function validate_code( $code = '' ) {
+	public static function validate_code( $mobio_code = '' ) {
+		// $ttdb = new wpdb( 'elitaroc_tvoetotaro_old', 'Qy5qd[cydQF1FrSA^tUzrCypr=QD;kT8PEdPu*1Sv!wVmfSp', 'elitaroc_tvoetotaro_old', 'localhost' );
 		$ttdb = new wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
 
 		try {
-			if( empty( $code ) ) {
+			if( empty( $mobio_code ) ) {
 				throw new \Exception( 'Не е въведен код.' );
 			}
 
 			// Check if code length is ok.
-			if( strlen( $code ) !== 6 ) {
+			if( strlen( $mobio_code ) !== 6 ) {
 				throw new \Exception( 'Кодът трябва да е с дължина 6 цифри.' );
 			}
 
 			// Check code content.
-			if( preg_match('/^[\w]*$/', $code )!==1 ) {
+			if( preg_match('/^[\w]*$/', $mobio_code )!==1 ) {
 				throw new \Exception( 'Кодът трябва да съдържа само цифри.' );
 			}
 
 			// Check code.
-			$code_valid = $ttdb->get_row( $wpdb->prepare( "SELECT * FROM codes WHERE code = '%s' AND module = 1", \sanitize_text_field( $code ) ) );
+			$code_valid = $ttdb->get_row( $ttdb->prepare( "SELECT * FROM codes WHERE code = '%s' AND module = 1", \sanitize_text_field( $mobio_code ) ) );
 
 			if( empty( $code_valid ) ) {
 				throw new \Exception( 'Кодът е невалиден или вече е използван.' );
@@ -224,7 +203,9 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
  	* @return bool
 	 */
 	public static function archive_code( $code_used ) {
-		$ttdb = new \wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
+		// $ttdb = new \wpdb( 'elitaroc_tvoetotaro_old', 'Qy5qd[cydQF1FrSA^tUzrCypr=QD;kT8PEdPu*1Sv!wVmfSp', 'elitaroc_tvoetotaro_old', 'localhost' );
+		$ttdb      = new wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
+		$code_used = $code_used['data'];
 
 		try {
 			// Change status.
@@ -249,9 +230,9 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
 			$data['customers_id']   = (int)$code_used->customers_id;
 			$data['payments_id']    = (int)$code_used->payments_id;
 			$data['mt_messages_id'] = (int)$code_used->mt_messages_id;
-			$data['module']         = (int)$module;
+			$data['module']         = 1;
 			$data['code']           = \sanitize_text_field( $code_used->code );
-			$data['status']         = \sanitize_text_field( $code_used->status );
+			$data['status']         = 'used';
 			$data['resent']         = \sanitize_text_field( $code_used->resent );
 			$data['added']          = \sanitize_text_field( $code_used->added );
 			$data['delivered']      = \sanitize_text_field( $code_used->delivered );
@@ -323,11 +304,10 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
 		// Process order.
 		$order = wc_get_order( $order_id );
 
-		$code 		   = isset( $_POST['mobio_code'] ) ? sanitize_text_field( $_POST['mobio_code'] ) : null;
-		$validate_code = self::validate_code( $code );
+		$mobio_code    = isset( $_POST['mobio_code'] ) ? sanitize_text_field( $_POST['mobio_code'] ) : '';
+		$validate_code = self::validate_code( $mobio_code );
 		if ( 'error' === $validate_code['result'] ) {
 			wc_add_notice( esc_html( $validate_code['message'] ), 'error' );
-			$order->update_status( 'failed', sanitize_text_field( $validate_code['result'] ) );
 
 			return;
 		}
@@ -341,7 +321,6 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
 		}
 
 		$order->payment_complete();
-		$order->update_status( 'completed', __( 'Order paid with SMS', 'mobio-woocommerce' ) );
 
 		// Empty cart.
 		WC()->cart->empty_cart();

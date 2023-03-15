@@ -96,7 +96,6 @@ function wc_gateway_mobio_init() {
 	add_filter( 'woocommerce_gateway_description', array( 'Mobio_WooCommerce', 'checkout_form_field' ), 20, 2 );
 	add_action( 'woocommerce_product_options_general_product_data', array( '\Unax\Mobio\Includes\Settings', 'product_options_general_product_data' ) );
 	add_action( 'woocommerce_process_product_meta', array( '\Unax\Mobio\Includes\Settings', 'process_product_meta' ) );
-	add_filter( 'woocommerce_after_checkout_validation', array( 'Mobio_WooCommerce', 'validate_code' ), 10, 2 );
 
 	// Initialize.
 	require_once MOBIO_WC_PATH . '/includes/class-mobio-woocommerce.php';
