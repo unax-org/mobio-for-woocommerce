@@ -149,10 +149,166 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
 
 
 	/**
+	 * Validate code by Mobio.
+	 *
+	 * @param string $fields Checkout fields.
+	 * @param string $errors Checkout errors.
+	 *
+	 * @return bool
+	 */
+	public static function after_checkout_code_validation( $fields, $errors ) {
+		$code 		   = isset( $_POST['mobio_code'] ) ? sanitize_text_field( $_POST['mobio_code'] ) : null;
+		$validate_code = self::validate_code( $code );
+
+		if ( 'error' === $validate_code['result'] ) {
+			$errors->add( 'validation', esc_html( $validate_code['message'] ) );
+
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * Validate code by Mobio.
+	 *
+	 * @param string $code Code.
+	 *
+	 * @return array
+	 */
+	public static function validate_code( $code = '' ) {
+		$ttdb = new wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
+
+		try {
+			if( empty( $code ) ) {
+				throw new \Exception( 'Не е въведен код.' );
+			}
+
+			// Check if code length is ok.
+			if( strlen( $code ) !== 6 ) {
+				throw new \Exception( 'Кодът трябва да е с дължина 6 цифри.' );
+			}
+
+			// Check code content.
+			if( preg_match('/^[\w]*$/', $code )!==1 ) {
+				throw new \Exception( 'Кодът трябва да съдържа само цифри.' );
+			}
+
+			// Check code.
+			$code_valid = $ttdb->get_row( $wpdb->prepare( "SELECT * FROM codes WHERE code = '%s' AND module = 1", \sanitize_text_field( $code ) ) );
+
+			if( empty( $code_valid ) ) {
+				throw new \Exception( 'Кодът е невалиден или вече е използван.' );
+			}
+
+			return array(
+				'result'  => 'success',
+				'data'    => $code_valid,
+			);
+
+		} catch ( \Exception $e ) {
+			return array(
+				'result'  => 'error',
+				'message' => esc_html( $e->getMessage() ),
+			);
+		}
+	}
+
+
+	/**
+	 * Validate code by Mobio.
+	 *
+ 	* @param string $code Code.
+ 	*
+ 	* @return bool
+	 */
+	public static function archive_code( $code_used ) {
+		$ttdb = new \wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
+
+		try {
+			// Change status.
+			$code_status = $ttdb->update(
+				'codes',
+				array(
+					'status' => 'used',
+					'used'   => date('Y:m:d H:i:s'),
+				),
+				array(
+					'id' => $code_used->id,
+				),
+				array( '%s', '%s' ),
+				array( '%d' ),
+			);
+
+			if( empty( $code_status ) ) {
+				throw new \Exception( 'Update code status failed.' );
+			}
+
+			// Move the code to codes archive.
+			$data['customers_id']   = (int)$code_used->customers_id;
+			$data['payments_id']    = (int)$code_used->payments_id;
+			$data['mt_messages_id'] = (int)$code_used->mt_messages_id;
+			$data['module']         = (int)$module;
+			$data['code']           = \sanitize_text_field( $code_used->code );
+			$data['status']         = \sanitize_text_field( $code_used->status );
+			$data['resent']         = \sanitize_text_field( $code_used->resent );
+			$data['added']          = \sanitize_text_field( $code_used->added );
+			$data['delivered']      = \sanitize_text_field( $code_used->delivered );
+			$data['used']           = \sanitize_text_field( $code_used->used );
+			$data['modified']       = \sanitize_text_field( $code_used->modified );
+
+			$codes_archive_id = $ttdb->insert( 'codes_archive', $data );
+			if( empty( $codes_archive_id ) ) {
+				throw new \Exception( 'Insert code in archive failed.' );
+			}
+
+			// Update mt_messages.
+			$mt_messages = $ttdb->update(
+				'mt_messages',
+				array(
+					'relation' 	   => 'codes_archive',
+					'relation_key' => (int)$codes_archive_id,
+				),
+				array(
+					'id' => (int)$code_used->mt_messages_id,
+				),
+				array( '%s', '%d' ),
+				array( '%d' ),
+			);
+
+			if( empty( $mt_messages ) ) {
+				throw new \Exception( 'Update mt_messages failed.' );
+			}
+
+			// Delete the original code.
+			$mt_messages = $ttdb->delete(
+				'codes',
+				array(
+					'id' => (int)$code_used->id,
+				),
+				array( '%d' ),
+			);
+
+			return array(
+				'result'  => 'success',
+				'data'    => $codes_archive_id,
+			);
+
+		} catch ( \Exception $e ) {
+			return array(
+				'result'  => 'error',
+				'message' => esc_html( $e->getMessage() ),
+			);
+		}
+	}
+
+
+	/**
 	 * Process the payment and return the result
 	 *
 	 * @param  int $order_id Order ID.
-	 * @return array
+	 * @return array|null
 	 */
 	public function process_payment( $order_id ) {
 		$order = wc_get_order( $order_id );
@@ -161,55 +317,28 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
 				esc_html__( 'Order not found.', 'mobio-woocommerce' ),
 				'error'
 			);
-			return false;
-		}
-
-		// Prepare fields.
-		$mobio_service_id = isset( $_POST['mobio_service_id'] ) ? (int) $_POST['mobio_service_id'] : null;
-		$mobio_code       = isset( $_POST['mobio_code'] ) ? sanitize_text_field( $_POST['mobio_code'] ) : null;
-
-		// Check fields.
-		if ( empty( $mobio_service_id ) ) {
-			wc_add_notice( esc_html__( 'Bad request: Mobio Service ID missing', 'mobio-woocommerce' ), 'error' );
-			return false;
-		}
-
-		if ( empty( $mobio_code ) ) {
-			wc_add_notice( sprintf( esc_html__( 'Missing required field for the selected payment method %s', 'mobio-woocommerce' ), $this->title ), 'error' );
-			return false;
-		}
-
-		// Code validation request.
-		$args  = array(
-			'servID' => $mobio_service_id,
-			'code' => $mobio_code
-		);
-
-		// Is test mode.
-		$settings     = get_option( 'woocommerce_' . MOBIO_WC_GATEWAY_ID . '_settings', array() );
-		$is_test_mode = ! empty( $settings['test_mode'] ) && 'yes' === $settings['test_mode'];
-		if ( $is_test_mode ) {
-			$args  = array(
-				'servID' => 29,
-				'code' => 'T4JC6G'
-			);
-		}
-
-		// Build URL.
-		$url = sprintf( 'http://www.mobio.bg/code/checkcode.php?%s', http_build_query( $args ) );
-
-		$response = wp_remote_get( $url );
-		if ( is_wp_error( $response ) ) {
-			return false;
-		}
-
-		// Check if is successful payment.
-		if ( 'PAYBG=OK' !== $response['body'] ) {
-			return false;
+			return;
 		}
 
 		// Process order.
 		$order = wc_get_order( $order_id );
+
+		$code 		   = isset( $_POST['mobio_code'] ) ? sanitize_text_field( $_POST['mobio_code'] ) : null;
+		$validate_code = self::validate_code( $code );
+		if ( 'error' === $validate_code['result'] ) {
+			wc_add_notice( esc_html( $validate_code['message'] ), 'error' );
+			$order->update_status( 'failed', sanitize_text_field( $validate_code['result'] ) );
+
+			return;
+		}
+
+		$archive_code = self::archive_code( $validate_code );
+		if ( 'error' === $archive_code['result'] ) {
+			wc_add_notice( esc_html( $archive_code['message'] ), 'error' );
+			$order->update_status( 'failed', sanitize_text_field( $archive_code['result'] ) );
+
+			return;
+		}
 
 		$order->payment_complete();
 		$order->update_status( 'completed', __( 'Order paid with SMS', 'mobio-woocommerce' ) );
