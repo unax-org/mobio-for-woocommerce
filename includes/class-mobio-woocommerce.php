@@ -151,13 +151,40 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
 	/**
 	 * Validate code by Mobio.
 	 *
+	 * @param string $fields Checkout fields.
+	 * @param string $errors Checkout errors.
+	 *
+	 * @return bool
+	 */
+	public static function after_checkout_code_validation( $fields, $errors ) {
+		if ( isset( $_POST['payment_method'] ) && 'wc_mobio' !== $_POST['payment_method'] ) {
+			return true;
+		}
+
+
+		$mobio_code    = isset( $_POST['mobio_code'] ) ? sanitize_text_field( $_POST['mobio_code'] ) : '';
+		$validate_code = self::validate_code( $mobio_code );
+
+		if ( 'error' === $validate_code['result'] ) {
+			$errors->add( 'validation', esc_html( $validate_code['message'] ) );
+
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * Validate code by Mobio.
+	 *
 	 * @param string $mobio_code Code.
 	 *
 	 * @return array
 	 */
 	public static function validate_code( $mobio_code = '' ) {
-		// $ttdb = new wpdb( 'elitaroc_tvoetotaro_old', 'Qy5qd[cydQF1FrSA^tUzrCypr=QD;kT8PEdPu*1Sv!wVmfSp', 'elitaroc_tvoetotaro_old', 'localhost' );
-		$ttdb = new wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
+		$ttdb         = new \wpdb( 'elitaroc_tvoetotaro_old', 'Qy5qd[cydQF1FrSA^tUzrCypr=QD;kT8PEdPu*1Sv!wVmfSp', 'elitaroc_tvoetotaro_old', 'localhost' );
+		// $ttdb      = new wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
 
 		try {
 			if( empty( $mobio_code ) ) {
@@ -203,8 +230,9 @@ class Mobio_WooCommerce extends \WC_Payment_Gateway {
  	* @return bool
 	 */
 	public static function archive_code( $code_used ) {
-		// $ttdb = new \wpdb( 'elitaroc_tvoetotaro_old', 'Qy5qd[cydQF1FrSA^tUzrCypr=QD;kT8PEdPu*1Sv!wVmfSp', 'elitaroc_tvoetotaro_old', 'localhost' );
-		$ttdb      = new wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
+		$ttdb         = new \wpdb( 'elitaroc_tvoetotaro_old', 'Qy5qd[cydQF1FrSA^tUzrCypr=QD;kT8PEdPu*1Sv!wVmfSp', 'elitaroc_tvoetotaro_old', 'localhost' );
+		// $ttdb      = new wpdb( 'root', '0000', 'tvoetotaro_old', 'localhost' );
+
 		$code_used = $code_used['data'];
 
 		try {
